@@ -26,7 +26,7 @@ use crate::{
 
 use anyhow::Context;
 use apt_cmd::{request::Request as AptRequest, AptCache, AptGet, AptMark};
-use as_result::*;
+use as_result::MapResult;
 use atomic::Atomic;
 use dbus::{
     self,
@@ -67,9 +67,9 @@ pub enum FgEvent {
 }
 
 pub struct LastKnown {
-    fetch: Result<(), ReleaseError>,
+    fetch:            Result<(), ReleaseError>,
     recovery_upgrade: Result<(), RecoveryError>,
-    release_upgrade: Result<(), ReleaseError>,
+    release_upgrade:  Result<(), ReleaseError>,
 }
 
 impl Default for LastKnown {
@@ -80,20 +80,20 @@ impl Default for LastKnown {
 
 pub struct ReleaseUpgradeState {
     action: release::UpgradeMethod,
-    from: Box<str>,
-    to: Box<str>,
+    from:   Box<str>,
+    to:     Box<str>,
 }
 
 pub struct Daemon {
-    event_tx: Sender<Event>,
-    fg_rx: Receiver<FgEvent>,
-    dbus_rx: Receiver<SignalEvent>,
-    connection: Arc<Connection>,
-    status: Arc<Atomic<DaemonStatus>>,
-    sub_status: Arc<Atomic<u8>>,
-    fetching_state: Arc<Atomic<(u64, u64)>>,
-    cancel: Arc<AtomicBool>,
-    last_known: LastKnown,
+    event_tx:        Sender<Event>,
+    fg_rx:           Receiver<FgEvent>,
+    dbus_rx:         Receiver<SignalEvent>,
+    connection:      Arc<Connection>,
+    status:          Arc<Atomic<DaemonStatus>>,
+    sub_status:      Arc<Atomic<u8>>,
+    fetching_state:  Arc<Atomic<(u64, u64)>>,
+    cancel:          Arc<AtomicBool>,
+    last_known:      LastKnown,
     release_upgrade: Option<ReleaseUpgradeState>,
     perform_upgrade: bool,
 }
@@ -308,7 +308,7 @@ impl Daemon {
             event_tx,
             fetching_state: prog_state,
             fg_rx,
-            last_known: Default::default(),
+            last_known: LastKnown::default(),
             release_upgrade: None,
             status,
             sub_status,
@@ -465,7 +465,7 @@ impl Daemon {
                 if let Some(status) = sighandler::status() {
                     info!("received a '{}' signal", status);
 
-                    use sighandler::Signal::*;
+                    use sighandler::Signal::{TermStop, Terminate};
 
                     match status {
                         Terminate => {
@@ -581,7 +581,7 @@ impl Daemon {
         info!("fetching updates for the system, including {:?}", additional_packages);
 
         let mut borrows = Vec::with_capacity(additional_packages.len());
-        borrows.extend(additional_packages.into_iter().map(String::as_str));
+        borrows.extend(additional_packages.iter().map(String::as_str));
 
         let apt_uris = crate::fetch::apt::fetch_uris(Some(&borrows)).await?;
 
@@ -628,8 +628,8 @@ impl Daemon {
 
         let event = Event::RecoveryUpgrade(RecoveryUpgradeMethod::FromRelease {
             version: if version.is_empty() { None } else { Some(version.into()) },
-            arch: if arch.is_empty() { None } else { Some(arch.into()) },
-            flags: RecoveryReleaseFlags::from_bits_truncate(flags),
+            arch:    if arch.is_empty() { None } else { Some(arch.into()) },
+            flags:   RecoveryReleaseFlags::from_bits_truncate(flags),
         });
 
         self.submit_event(event)

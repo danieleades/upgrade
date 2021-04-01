@@ -1,7 +1,7 @@
 mod errors;
 mod version;
 
-use as_result::*;
+use as_result::MapResult;
 use async_process::Command;
 use futures::prelude::*;
 use std::{
