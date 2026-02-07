@@ -327,11 +327,11 @@ fn connect_upgrade(state: &mut State, widgets: &EventWidgets, is_lts: bool, rebo
                 EolStatus::Imminent => Some(fl!(
                     "eol-imminent",
                     current = fomat!((eol.version)),
-                    date = fomat!((
-                        NaiveDate::from_ymd_opt(y as i32, m, d)
+                    date = fomat!(
+                        (NaiveDate::from_ymd_opt(y as i32, m, d)
                             .expect("invalid EOL date")
-                            .format("%B %-d, %Y")
-                    ))
+                            .format("%B %-d, %Y"))
+                    )
                 )),
                 EolStatus::Ok => None,
             }
