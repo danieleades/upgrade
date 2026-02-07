@@ -438,9 +438,7 @@ pub fn iter_files(dir: ReadDir) -> impl Iterator<Item = DirEntry> {
     dir.filter_map(Result::ok).filter(|entry| entry.metadata().ok().map_or(false, |m| m.is_file()))
 }
 
-fn is_save_file(path: &Path) -> bool {
-    path.extension() == Some(OsStr::from_bytes(b"save"))
-}
+fn is_save_file(path: &Path) -> bool { path.extension() == Some(OsStr::from_bytes(b"save")) }
 
 #[cfg(test)]
 mod tests {

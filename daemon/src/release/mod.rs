@@ -42,9 +42,7 @@ pub const STARTUP_UPGRADE_FILE: &str = "/pop-upgrade";
 /// Packages which need to be removed *before* the sources are reset to defaults
 /// and updates are applied (e.g. DKMS packages that work with the Pop!_OS kernel when
 /// installed from third-party sources, but not when installed from the Ubuntu repo).
-const REMOVE_PACKAGES_EARLY: &[&str] = &[
-    "openrazer-driver-dkms",
-];
+const REMOVE_PACKAGES_EARLY: &[&str] = &["openrazer-driver-dkms"];
 
 /// Packages which should be removed before upgrading.
 ///
@@ -176,13 +174,19 @@ impl From<UpgradeEvent> for &'static str {
             }
             UpgradeEvent::Failure => "an error occurred while setting up the release upgrade",
             UpgradeEvent::FetchingPackages => "fetching updated packages for the current release",
-            UpgradeEvent::FetchingPackagesForNewRelease => "fetching updated packages for the new release",
-            UpgradeEvent::FetchingAdditionalPackagesForNewRelease => "fetching additional packages for the new release",
+            UpgradeEvent::FetchingPackagesForNewRelease => {
+                "fetching updated packages for the new release"
+            }
+            UpgradeEvent::FetchingAdditionalPackagesForNewRelease => {
+                "fetching additional packages for the new release"
+            }
             UpgradeEvent::InstallingPackages => {
                 "ensuring that system-critical packages are installed"
             }
             UpgradeEvent::RemovingConflicts => "removing deprecated and/or conflicting packages",
-            UpgradeEvent::RemovingWacomConflicts => "replacing Surface-tailored Wacom packages with standard ones",
+            UpgradeEvent::RemovingWacomConflicts => {
+                "replacing Surface-tailored Wacom packages with standard ones"
+            }
             UpgradeEvent::Success => "new release is ready to install",
             UpgradeEvent::SuccessLive => "new release was successfully installed",
             UpgradeEvent::UpdatingPackageLists => "updating package lists",
@@ -469,7 +473,7 @@ pub async fn upgrade<'a>(
 
     // Ensure packages are not newer than what's in the repositories.
     downgrade_packages().await?;
-    
+
     // Replace problematic Wacom packages with supported ones.
     remove_wacom_packages(logger).await?;
 
@@ -493,7 +497,7 @@ pub async fn upgrade<'a>(
 
     // Reset system76-power modprobe configurations to the system defaults.
     _ = switchable_graphics::reset_to_default();
-    
+
     // Reset the user shell to /bin/bash in case the shell was removed in upgrade
     _ = logins::reset_shell();
 
@@ -533,17 +537,20 @@ async fn downgrade_packages() -> Result<(), ReleaseError> {
         if package.contains("pop-upgrade") || package.contains("pop-system-updater") {
             continue;
         }
-        
+
         // Papirus's elementary variant must be removed prior to downgrading the main package.
         if package.contains("papirus-icon-theme") {
             info!("papirus-icon-theme will be downgraded, so removing epapirus-icon-theme");
             let mut remove_epapirus_cmd = AptGet::new().allow_downgrades().force().noninteractive();
             remove_epapirus_cmd.arg("remove");
             remove_epapirus_cmd.arg("epapirus-icon-theme");
-            let _remove_epapirus = remove_epapirus_cmd.status().await
-                .context("apt-get remove epapirus-icon-theme").map_err(ReleaseError::Downgrade);
+            let _remove_epapirus = remove_epapirus_cmd
+                .status()
+                .await
+                .context("apt-get remove epapirus-icon-theme")
+                .map_err(ReleaseError::Downgrade);
         }
-        
+
         // In Ubuntu 22.04, the `ansible` and `ansible-core` packages are not compatible.
         // If `ansible-core` is downgradable, check if `ansible` is downgradable;
         // if so, remove `ansible-core` and skip adding it to the downgrade command.
@@ -552,11 +559,15 @@ async fn downgrade_packages() -> Result<(), ReleaseError> {
             for (package, _version) in &downgradable {
                 if package.eq("ansible") {
                     info!("ansible will also be downgraded, so removing ansible-core");
-                    let mut remove_ansible_core_cmd = AptGet::new().allow_downgrades().force().noninteractive();
-                        remove_ansible_core_cmd.arg("remove");
-                        remove_ansible_core_cmd.arg("ansible-core");
-                        let _remove_ansible_core = remove_ansible_core_cmd.status().await
-                            .context("apt-get remove ansible-core").map_err(ReleaseError::Downgrade);
+                    let mut remove_ansible_core_cmd =
+                        AptGet::new().allow_downgrades().force().noninteractive();
+                    remove_ansible_core_cmd.arg("remove");
+                    remove_ansible_core_cmd.arg("ansible-core");
+                    let _remove_ansible_core = remove_ansible_core_cmd
+                        .status()
+                        .await
+                        .context("apt-get remove ansible-core")
+                        .map_err(ReleaseError::Downgrade);
                     continue 'downgrades;
                 }
             }
@@ -611,8 +622,9 @@ async fn remove_wacom_packages(logger: &dyn Fn(UpgradeEvent)) -> Result<(), Rele
     // This must be done before checking for remoteless packages,
     // as other related packages will also be removed.
     let mut conflicting_surface = (async {
-        let (mut child, package_stream) = 
-        DpkgQuery::new().show_installed(["libwacom-common-surface", "libwacom9-surface"]).await?;
+        let (mut child, package_stream) = DpkgQuery::new()
+            .show_installed(["libwacom-common-surface", "libwacom9-surface"])
+            .await?;
 
         futures_util::pin_mut!(package_stream);
 
@@ -630,7 +642,7 @@ async fn remove_wacom_packages(logger: &dyn Fn(UpgradeEvent)) -> Result<(), Rele
     .await
     .context("check for known-conflicting Wacom/Surface packages")
     .map_err(ReleaseError::ConflictRemoval)?;
-    
+
     if !conflicting_surface.is_empty() {
         apt_lock_wait().await;
         (logger)(UpgradeEvent::RemovingWacomConflicts);
@@ -643,11 +655,15 @@ async fn remove_wacom_packages(logger: &dyn Fn(UpgradeEvent)) -> Result<(), Rele
             .context("conflict removal (libwacom Surface packages)")
             .map_err(ReleaseError::ConflictRemoval)?;
     }
-    
+
     Ok(())
 }
 
-async fn remove_conflicting_packages(logger: &dyn Fn(UpgradeEvent), packages: &[&str], remoteless: bool) -> Result<(), ReleaseError> {    
+async fn remove_conflicting_packages(
+    logger: &dyn Fn(UpgradeEvent),
+    packages: &[&str],
+    remoteless: bool,
+) -> Result<(), ReleaseError> {
     let mut conflicting = (async {
         let (mut child, package_stream) = DpkgQuery::new().show_installed(packages).await?;
 
@@ -788,9 +804,10 @@ async fn fetch_new_release_packages<'b>(
 
         // If upgrading to 24.04, download an additional package.
         if to == "24.04" {
-            //const NEW_PACKAGES &[&str] = &["gnome-online-accounts-gtk"];
-            //new_packages = Some(ExtraPackages::Static(NEW_PACKAGES));
-            additional_fetch(&Shutdown::new(), logger, fetch, &["gnome-online-accounts-gtk"]).await?;
+            // const NEW_PACKAGES &[&str] = &["gnome-online-accounts-gtk"];
+            // new_packages = Some(ExtraPackages::Static(NEW_PACKAGES));
+            additional_fetch(&Shutdown::new(), logger, fetch, &["gnome-online-accounts-gtk"])
+                .await?;
         }
 
         snapd::hold_transitional_packages().await?;
@@ -926,24 +943,23 @@ mod logins {
     use std::process::{Command, Stdio};
 
     fn login_is_disabled(user: &str) -> bool {
-        Command::new("getent")
-            .args(&["passwd", user])
-            .stdout(Stdio::piped())
-            .output()
-            .map_or(true, |output| {
+        Command::new("getent").args(&["passwd", user]).stdout(Stdio::piped()).output().map_or(
+            true,
+            |output| {
                 let stdout = output.stdout.trim_end();
                 stdout.ends_with(b"/bin/false") || stdout.ends_with(b"/usr/sbin/nologin")
-            })
+            },
+        )
     }
-    
+
     /// Reset the user shell to /bin/bash in case the shell was removed in upgrade
     pub fn reset_shell() -> anyhow::Result<()> {
         let (uid_min, uid_max) = crate::misc::uid_min_max()?;
-    
+
         for user in unsafe { uzers::all_users() } {
             if user.uid() >= uid_min && user.uid() <= uid_max {
                 let name = user.name();
-                
+
                 if let Some(name) = name.to_str() {
                     if !login_is_disabled(name) {
                         _ = std::process::Command::new("usermod")
@@ -953,7 +969,7 @@ mod logins {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
