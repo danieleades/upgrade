@@ -294,7 +294,7 @@ fn cancelled_upgrade(state: &mut State, widgets: &EventWidgets) {
 
     state.upgrade_downloaded = false;
     widgets.upgrade.options[0]
-        .label(&*state.upgrade_label)
+        .label(&state.upgrade_label)
         .button_signal(Some(download_action(state.gui_sender.clone())))
         .reset_progress()
         .show_button();

@@ -320,14 +320,14 @@ async fn apt_fetch_(
         Ok::<(), anyhow::Error>(())
     };
 
-    let _ = futures::try_join!(sender, receiver).map(|_| ()).map_err(ReleaseError::PackageFetch)?;
+    futures::try_join!(sender, receiver).map(|_| ()).map_err(ReleaseError::PackageFetch)?;
     Ok(errored)
 }
 
 /// Check if release files can be upgraded, and then overwrite them with the new release.
 ///
 /// On failure, the original release files will be restored.
-pub async fn release_upgrade<'b>(
+pub async fn release_upgrade(
     logger: &dyn Fn(UpgradeEvent),
     current: &str,
     new: &str,
@@ -339,7 +339,7 @@ pub async fn release_upgrade<'b>(
 
     // In case the system abruptly shuts down after this point, create a file to signal
     // that packages were being fetched for a new release.
-    fs::write(RELEASE_FETCH_FILE, &format!("{} {}", current, new))
+    fs::write(RELEASE_FETCH_FILE, format!("{} {}", current, new))
         .context("failed to create release fetch file")?;
 
     let update_sources = async move {
@@ -596,7 +596,7 @@ async fn downgrade_packages() -> Result<(), ReleaseError> {
         }
 
         if let Some(version) = version.split_ascii_whitespace().next() {
-            cmd.arg([&package, "=", version].concat());
+            cmd.arg([package, "=", version].concat());
         }
     }
 
@@ -642,7 +642,7 @@ async fn remove_wacom_packages(logger: &dyn Fn(UpgradeEvent)) -> Result<(), Rele
     // the standard versions must be manually installed.
     // This must be done before checking for remoteless packages,
     // as other related packages will also be removed.
-    let mut conflicting_surface = (async {
+    let conflicting_surface = (async {
         let (mut child, package_stream) = DpkgQuery::new()
             .show_installed(["libwacom-common-surface", "libwacom9-surface"])
             .await?;
@@ -746,20 +746,18 @@ fn terminate_background_applications() {
         }
     };
 
-    for proc in processes {
-        if let Ok(proc) = proc {
-            if let Ok(exe_path) = proc.exe() {
-                if let Some(exe) = exe_path.file_name() {
-                    if let Some(mut exe) = exe.to_str() {
-                        if exe.ends_with(" (deleted)") {
-                            exe = &exe[..exe.len() - 10];
-                        }
+    for proc in processes.flatten() {
+        if let Ok(exe_path) = proc.exe() {
+            if let Some(exe) = exe_path.file_name() {
+                if let Some(mut exe) = exe.to_str() {
+                    if exe.ends_with(" (deleted)") {
+                        exe = &exe[..exe.len() - 10];
+                    }
 
-                        if exe == APPCENTER {
-                            eprintln!("killing {}", APPCENTER);
-                            unsafe {
-                                let _ = libc::kill(proc.pid(), libc::SIGKILL);
-                            }
+                    if exe == APPCENTER {
+                        eprintln!("killing {}", APPCENTER);
+                        unsafe {
+                            let _ = libc::kill(proc.pid(), libc::SIGKILL);
                         }
                     }
                 }
@@ -903,7 +901,7 @@ pub async fn cleanup() {
                         .map(<&'static str>::from)
                         .expect("no codename for version");
 
-                    let _ = crate::release::repos::restore(codename);
+                    let _ = crate::release::repos::restore(codename).await;
                 }
                 Err(why) => {
                     error!("could not detect distro release version: {}", why);
@@ -922,7 +920,7 @@ pub async fn cleanup() {
     if Path::new(crate::TRANSITIONAL_SNAPS).exists() {
         if let Ok(packages) = fs::read_to_string(crate::TRANSITIONAL_SNAPS) {
             for package in packages.lines() {
-                let _ = AptMark::new().unhold(&[&*package]).await;
+                let _ = AptMark::new().unhold(&[package]).await;
             }
         }
 
@@ -964,7 +962,7 @@ mod logins {
     use std::process::{Command, Stdio};
 
     fn login_is_disabled(user: &str) -> bool {
-        Command::new("getent").args(&["passwd", user]).stdout(Stdio::piped()).output().map_or(
+        Command::new("getent").args(["passwd", user]).stdout(Stdio::piped()).output().map_or(
             true,
             |output| {
                 let stdout = output.stdout.trim_end();
@@ -984,7 +982,7 @@ mod logins {
                 if let Some(name) = name.to_str() {
                     if !login_is_disabled(name) {
                         _ = std::process::Command::new("usermod")
-                            .args(&["--shell", "/bin/bash", name])
+                            .args(["--shell", "/bin/bash", name])
                             .status();
                     }
                 }
